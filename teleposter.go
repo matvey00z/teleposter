@@ -43,8 +43,6 @@ type tBot struct {
 	proxyAddr string
 }
 
-var bot tBot
-
 type tTelegramResponse struct {
 	Ok          bool
 	Description string
@@ -114,7 +112,7 @@ type tUpdate struct {
 	Pre_checkout_query   interface{}      // optional TODO
 }
 
-func getUpdates(offset *int64) []tUpdate {
+func (bot *tBot) getUpdates(offset *int64) []tUpdate {
 	params := make(map[string]interface{})
 	params["timeout"] = pollTimeout
 	if offset != nil {
@@ -132,7 +130,7 @@ func getUpdates(offset *int64) []tUpdate {
 	return updates
 }
 
-func getLikeKeyboard(postId *int64) string {
+func (bot *tBot) getLikeKeyboard(postId *int64) string {
 	var reactions_cnt [len(reactions)]int
 	if postId != nil {
 		rows, err := bot.db.Query(`
@@ -168,7 +166,7 @@ func getLikeKeyboard(postId *int64) string {
 	return keyboard.String()
 }
 
-func handleMessage(messageJson json.RawMessage) {
+func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	log.Println("Input message")
 	type tChat struct {
 		Id *int64
@@ -269,7 +267,7 @@ func handleMessage(messageJson json.RawMessage) {
 		replyMethod = "sendMessage"
 		params["text"] = "^^Нраица?"
 	}
-	params["reply_markup"] = getLikeKeyboard(nil)
+	params["reply_markup"] = bot.getLikeKeyboard(nil)
 	answer, err := bot.request(replyMethod, params)
 	if err != nil {
 		log.Panic(err)
@@ -287,7 +285,7 @@ func handleMessage(messageJson json.RawMessage) {
 	}
 }
 
-func like(postId int64, reactionType int, userId int64, name string) {
+func (bot *tBot) like(postId int64, reactionType int, userId int64, name string) {
 	res, err := bot.db.Exec(`
         DELETE FROM likes
         WHERE post_id = ? AND reaction_type = ? AND user_id = ?`,
@@ -320,7 +318,7 @@ func like(postId int64, reactionType int, userId int64, name string) {
 	}
 }
 
-func handleCallback(callbackQueryJson json.RawMessage) {
+func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
 	type tChat struct {
 		Id *int64
 	}
@@ -347,26 +345,26 @@ func handleCallback(callbackQueryJson json.RawMessage) {
 	if num < 0 || num >= len(reactions) {
 		log.Panic(errors.New("Bad reaction type"))
 	}
-	like(*callbackQuery.Message.Message_id, num,
+	bot.like(*callbackQuery.Message.Message_id, num,
 		*callbackQuery.From.Id,
 		callbackQuery.From.First_name)
 	params := map[string]interface{}{
 		"chat_id":      *callbackQuery.Message.Chat.Id,
 		"message_id":   *callbackQuery.Message.Message_id,
-		"reply_markup": getLikeKeyboard(callbackQuery.Message.Message_id),
+		"reply_markup": bot.getLikeKeyboard(callbackQuery.Message.Message_id),
 	}
 	bot.request("editMessageReplyMarkup", params) // TODO check answer and err
 }
 
-func handleUpdate(update tUpdate) int64 {
+func (bot *tBot) handleUpdate(update tUpdate) int64 {
 	if update.Update_id == nil {
 		log.Panic("nil update id")
 	}
 	if update.Message != nil {
-		handleMessage(*update.Message)
+		bot.handleMessage(*update.Message)
 	}
 	if update.Callback_query != nil {
-		handleCallback(*update.Callback_query)
+		bot.handleCallback(*update.Callback_query)
 	}
 	if update.Edited_message != nil ||
 		update.Inline_query != nil ||
@@ -403,6 +401,7 @@ func (intf *IntFlag) String() string {
 func main() {
 	var chatId IntFlag
 	var dbname string
+	var bot tBot
 	flag.StringVar(&dbname, "dbname", "", "Database filename")
 	flag.StringVar(&bot.token, "token", "", "Bot token")
 	flag.Var(&chatId, "chat", "ChatId")
@@ -439,12 +438,13 @@ func main() {
 		log.Panic(err)
 	}
 
+	log.Println("Started serving updates")
 	var poffset *int64
 	var offset int64
 	for {
-		updates := getUpdates(poffset)
+		updates := bot.getUpdates(poffset)
 		for _, update := range updates {
-			offset = handleUpdate(update) + 1
+			offset = bot.handleUpdate(update) + 1
 			poffset = &offset
 		}
 		if len(updates) == 0 {
