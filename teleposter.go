@@ -137,6 +137,13 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	type tChat struct {
 		Id *int64
 	}
+	type tMessageEntity struct {
+		Type   *string
+		Offset *int64
+		Length *int64
+		Url    *string
+		User   *interface{}
+	}
 	type tAnimation struct {
 		File_id  string
 		Width    *int64
@@ -150,6 +157,7 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 		Message_id *int64
 		Chat       *tChat
 		Text       *string
+		Entities   []tMessageEntity
 		Audio      *interface{} // TODO
 		Document   *interface{} // TODO
 		Animation  *tAnimation
@@ -175,6 +183,26 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	var replyMethod string
 	params := make(map[string]interface{})
 	params["chat_id"] = bot.chatId
+	// Handle commands. A command must start from the beginning of the message
+	for _, entity := range message.Entities {
+		if message.Text == nil ||
+			entity.Type == nil ||
+			entity.Offset == nil ||
+			entity.Length == nil {
+			log.Println("Malformed message.Entity")
+			continue
+		}
+		if *entity.Offset == 0 && *entity.Type == "bot_command" {
+			if int(*entity.Length) > len(*message.Text) {
+				log.Println("malformed bot command")
+				continue
+			}
+			bot.handleCommand(*message.Chat.Id,
+				(*message.Text)[0:*entity.Length])
+			// There can be only one command since it starts with a message
+			return
+		}
+	}
 	if message.Text != nil {
 		replyMethod = "sendMessage"
 		params["text"] = *message.Text
