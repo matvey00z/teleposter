@@ -116,3 +116,41 @@ func (bot *tBot) like(postId int64, reactionType int, userId int64, name string)
 		log.Printf("Reaction of <%v> to %v: not %v\n", name, postId, reactionType)
 	}
 }
+
+func (bot *tBot) getUserStats(authorId int64) (int64, [len(reactions)]int64) {
+	var totalPosts int64
+	var totalReactions [len(reactions)]int64
+	rows, err := bot.db.Query(`
+		SELECT post_id
+		FROM authors
+		WHERE author_id = ?`, authorId)
+	if err != nil {
+		log.Panic(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		totalPosts += 1
+		var postId int
+		err := rows.Scan(&postId)
+		if err != nil {
+			log.Panic(err)
+		}
+		reaction_rows, err := bot.db.Query(`
+			SELECT reaction_type
+			FROM likes
+			WHERE post_id = ?`, postId)
+		if err != nil {
+			log.Panic(err)
+		}
+		defer reaction_rows.Close()
+		for reaction_rows.Next() {
+			var reaction_type int
+			reaction_rows.Scan(&reaction_type)
+			if reaction_type < 0 || reaction_type >= len(totalReactions) {
+				log.Println("Bad reaction type")
+			}
+			totalReactions[reaction_type] += 1
+		}
+	}
+	return totalPosts, totalReactions
+}
