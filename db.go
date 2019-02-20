@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"time"
 )
 
 /*
@@ -15,9 +16,7 @@ import (
  *  table authors
  *   post_id uint64
  *   author_id uint64
- *  table unsupported_messages
- *   forwarded_post_id uint64
- *   keyboard_post_id uint64
+ *   timestamp uint64
  */
 
 func (bot *tBot) openDB(dbname string) {
@@ -28,17 +27,14 @@ func (bot *tBot) openDB(dbname string) {
 	}
 	_, err = bot.db.Exec(`
         CREATE TABLE IF NOT EXISTS likes (
-            post_id       INTEGER,
-            reaction_type INTEGER,
-            user_id       INTEGER
+            post_id       INTEGER NOT NULL,
+            reaction_type INTEGER NOT NULL,
+            user_id       INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS authors (
-            post_id   INTEGER,
-            author_id INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS unsupported_messages (
-            forwarded_post_id INTEGER,
-            keyboard_post_id  INTEGER
+            post_id   INTEGER UNIQUE NOT NULL,
+            author_id INTEGER NOT NULL,
+			timestamp INTEGER NOT NULL
         );
     `)
 	if err != nil {
@@ -77,20 +73,12 @@ func (bot *tBot) getReactions(postId *int64) [len(reactions)]int {
 }
 
 func (bot *tBot) rememberAuthor(messageId int64, chatId int64) {
+	timestamp := time.Now().Unix()
 	_, err := bot.db.Exec(`
-        INSERT INTO authors (post_id, author_id)
-        VALUES(?, ?)`,
-		messageId, chatId)
-	if err != nil {
-		log.Panic(err)
-	}
-}
-
-func (bot *tBot) rememberUnsupported(forwardedId int64, keyboardId int64) {
-	_, err := bot.db.Exec(`
-		INSERT INTO unsupported_messages (forwarded_post_id, keyboard_post_id)
-		VALUES(?, ?)`,
-		forwardedId, keyboardId)
+		DELETE FROM authors WHERE post_id=?;
+        INSERT INTO authors (post_id, author_id, timestamp)
+        VALUES(?, ?, ?)`,
+		messageId, messageId, chatId, timestamp)
 	if err != nil {
 		log.Panic(err)
 	}

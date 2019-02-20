@@ -176,10 +176,7 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 		log.Panic(err)
 	}
 
-	bot.rememberAuthor(*message.Message_id, *message.Chat.Id)
-
 	supported := true
-	var forwardedMessageId int64
 	var replyMethod string
 	params := make(map[string]interface{})
 	params["chat_id"] = bot.chatId
@@ -238,7 +235,7 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	}
 	if !supported {
 		log.Println("Unsupported message type")
-		answer, err := bot.request("forwardMessage", map[string]interface{}{
+		_, err := bot.request("forwardMessage", map[string]interface{}{
 			"chat_id":      bot.chatId,
 			"from_chat_id": *message.Chat.Id,
 			"message_id":   *message.Message_id,
@@ -246,12 +243,9 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 		if err != nil {
 			log.Panic(err)
 		}
-		var forwardedMessage tMessage
-		err = json.Unmarshal(answer, &forwardedMessage)
 		if err != nil {
 			log.Panic(err)
 		}
-		forwardedMessageId = *forwardedMessage.Message_id
 		replyMethod = "sendMessage"
 		params["text"] = "^^Нраица?"
 	}
@@ -260,14 +254,12 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	if err != nil {
 		log.Panic(err)
 	}
-	if !supported {
-		var sentMessage tMessage
-		err = json.Unmarshal(answer, &sentMessage)
-		if err != nil {
-			log.Panic(err)
-		}
-		bot.rememberUnsupported(forwardedMessageId, *sentMessage.Message_id)
+	var sentMessage tMessage
+	err = json.Unmarshal(answer, &sentMessage)
+	if err != nil {
+		log.Panic(err)
 	}
+	bot.rememberAuthor(*sentMessage.Message_id, *message.Chat.Id)
 }
 
 func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
