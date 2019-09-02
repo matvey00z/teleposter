@@ -154,3 +154,23 @@ func (bot *tBot) getUserStats(authorId int64) (int64, [len(reactions)]int64) {
 	}
 	return totalPosts, totalReactions
 }
+
+func (bot *tBot) getAuthorsList() []int64 {
+	var authorsList []int64
+	rows, err := bot.db.Query(`
+		SELECT DISTINCT author_id
+		FROM authors`)
+	if err != nil {
+		log.Panic(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var authorId int64
+		err := rows.Scan(&authorId)
+		if err != nil {
+			log.Panic(err)
+		}
+		authorsList = append(authorsList, authorId)
+	}
+	return authorsList
+}

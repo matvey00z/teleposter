@@ -37,7 +37,13 @@ type tTelegramResponse struct {
 }
 
 type tUser struct{}
-type tChat struct{}
+type tChat struct {
+	Id         *int64
+	Title      *string
+	Username   *string
+	First_name *string
+	Last_name  *string
+}
 
 func (bot *tBot) request(method string, params map[string]interface{}) (json.RawMessage, error) {
 	var client *http.Client = nil
@@ -134,9 +140,6 @@ func (bot *tBot) getLikeKeyboard(postId *int64) string {
 
 func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	log.Println("Input message")
-	type tChat struct {
-		Id *int64
-	}
 	type tMessageEntity struct {
 		Type   *string
 		Offset *int64
@@ -263,9 +266,6 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 }
 
 func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
-	type tChat struct {
-		Id *int64
-	}
 	type tUser struct {
 		Id         *int64
 		First_name string
@@ -318,6 +318,37 @@ func (bot *tBot) handleUpdate(update tUpdate) int64 {
 		log.Println("Some features of this messages are not supported by the bot yet")
 	}
 	return *update.Update_id
+}
+
+// TODO store result in db
+func (bot *tBot) getAuthorName(chatId int64) string {
+	answer, err := bot.request("getChat", map[string]interface{}{
+		"chat_id": chatId,
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+	var chat tChat
+	err = json.Unmarshal(answer, &chat)
+	if err != nil {
+		log.Panic(err)
+	}
+	if chat.Username != nil {
+		ret := "@" + *chat.Username
+		if chat.First_name != nil {
+			ret += " [" + *chat.First_name
+			if chat.Last_name != nil {
+				ret += *chat.Last_name
+			}
+			ret += "]"
+		} else if chat.Last_name != nil {
+			ret += " [" + *chat.Last_name + "]"
+		} else if chat.Title != nil {
+			ret += " [" + *chat.Title + "]"
+		}
+		return ret
+	}
+	return strconv.FormatInt(chatId, 10)
 }
 
 type IntFlag struct {
