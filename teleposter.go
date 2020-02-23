@@ -138,51 +138,99 @@ func (bot *tBot) getLikeKeyboard(postId *int64) string {
 	return keyboard.String()
 }
 
+type tMessageEntity struct {
+	Type   *string
+	Offset *int64
+	Length *int64
+	Url    *string
+	User   *interface{}
+}
+type tAnimation struct {
+	File_id  string
+	Width    *int64
+	Height   *int64
+	Duration *int64
+}
+type tPhoto struct {
+	File_id string
+}
+type tMessage struct {
+	Message_id *int64
+	Chat       *tChat
+	Text       *string
+	Entities   []tMessageEntity
+	Audio      *interface{} // TODO
+	Document   *interface{} // TODO
+	Animation  *tAnimation
+	Photo      []tPhoto
+	Sticker    *interface{} // TODO
+	Video      *interface{} // TODO
+	Voice      *interface{} // TODO
+	Video_note *interface{} // TODO
+	Caption    *interface{} // TODO
+	Contact    *interface{} // TODO
+	Location   *interface{} // TODO
+}
+
+type tRequest struct {
+	method string
+	params map[string]interface{}
+}
+
+func newRequest() tRequest {
+	var request tRequest
+	request.params = make(map[string]interface{})
+	return request
+}
+
+func (bot *tBot) handleMessageText(message tMessage, request *tRequest) {
+	request.method = "sendMessage"
+	request.params["text"] = *message.Text
+}
+
+func (bot *tBot) handleMessagePhoto(message tMessage, request *tRequest) {
+	request.method = "sendPhoto"
+	request.params["photo"] = message.Photo[0].File_id
+}
+
+func (bot *tBot) handleMessageAnimation(message tMessage, request *tRequest) {
+	request.method = "sendAnimation"
+	request.params["animation"] = message.Animation.File_id
+	request.params["width"] = *message.Animation.Width
+	request.params["height"] = *message.Animation.Height
+	request.params["duration"] = *message.Animation.Duration
+	if message.Caption != nil {
+		request.params["caption"] = *message.Caption
+	}
+}
+
+func (bot *tBot) handleMessageUnsupported(message tMessage, request *tRequest) {
+	log.Println("Unsupported message type")
+	_, err := bot.request("forwardMessage", map[string]interface{}{
+		"chat_id":      bot.chatId,
+		"from_chat_id": *message.Chat.Id,
+		"message_id":   *message.Message_id,
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+	if err != nil {
+		log.Panic(err)
+	}
+	request.method = "sendMessage"
+	request.params["text"] = "^^Нраица?"
+}
+
 func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	log.Println("Input message")
-	type tMessageEntity struct {
-		Type   *string
-		Offset *int64
-		Length *int64
-		Url    *string
-		User   *interface{}
-	}
-	type tAnimation struct {
-		File_id  string
-		Width    *int64
-		Height   *int64
-		Duration *int64
-	}
-	type tPhoto struct {
-		File_id string
-	}
-	type tMessage struct {
-		Message_id *int64
-		Chat       *tChat
-		Text       *string
-		Entities   []tMessageEntity
-		Audio      *interface{} // TODO
-		Document   *interface{} // TODO
-		Animation  *tAnimation
-		Photo      []tPhoto
-		Sticker    *interface{} // TODO
-		Video      *interface{} // TODO
-		Voice      *interface{} // TODO
-		Video_note *interface{} // TODO
-		Caption    *interface{} // TODO
-		Contact    *interface{} // TODO
-		Location   *interface{} // TODO
-	}
 	var message tMessage
 	err := json.Unmarshal(messageJson, &message)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	supported := true
-	var replyMethod string
-	params := make(map[string]interface{})
-	params["chat_id"] = bot.chatId
+	var request = newRequest()
+	request.params["chat_id"] = bot.chatId
 	// Handle commands. A command must start from the beginning of the message
 	for _, entity := range message.Entities {
 		if message.Text == nil ||
@@ -204,11 +252,9 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 		}
 	}
 	if message.Text != nil {
-		replyMethod = "sendMessage"
-		params["text"] = *message.Text
+		bot.handleMessageText(message, &request)
 	} else if message.Photo != nil {
-		replyMethod = "sendPhoto"
-		params["photo"] = message.Photo[0].File_id
+		bot.handleMessagePhoto(message, &request)
 		/* TODO send media group if have field media_group_id
 			sendMediaGroup does not support inline keyboard
 			replyMethod = "sendMediaGroup"
@@ -225,35 +271,12 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 			supported = false
 		}*/
 	} else if message.Animation != nil {
-		replyMethod = "sendAnimation"
-		params["animation"] = message.Animation.File_id
-		params["width"] = *message.Animation.Width
-		params["height"] = *message.Animation.Height
-		params["duration"] = *message.Animation.Duration
-		if message.Caption != nil {
-			params["caption"] = *message.Caption
-		}
+		bot.handleMessageAnimation(message, &request)
 	} else {
-		supported = false
+		bot.handleMessageUnsupported(message, &request)
 	}
-	if !supported {
-		log.Println("Unsupported message type")
-		_, err := bot.request("forwardMessage", map[string]interface{}{
-			"chat_id":      bot.chatId,
-			"from_chat_id": *message.Chat.Id,
-			"message_id":   *message.Message_id,
-		})
-		if err != nil {
-			log.Panic(err)
-		}
-		if err != nil {
-			log.Panic(err)
-		}
-		replyMethod = "sendMessage"
-		params["text"] = "^^Нраица?"
-	}
-	params["reply_markup"] = bot.getLikeKeyboard(nil)
-	answer, err := bot.request(replyMethod, params)
+	request.params["reply_markup"] = bot.getLikeKeyboard(nil)
+	answer, err := bot.request(request.method, request.params)
 	if err != nil {
 		log.Panic(err)
 	}
