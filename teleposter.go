@@ -168,6 +168,12 @@ type tAnimation struct {
 type tPhoto struct {
 	File_id string
 }
+type tVideo struct {
+	File_id  string
+	Width    *int64
+	Height   *int64
+	Duration *int64
+}
 type tMessage struct {
 	Message_id     *int64
 	Chat           *tChat
@@ -180,7 +186,7 @@ type tMessage struct {
 	Media_group_id *string
 	Photo          []tPhoto
 	Sticker        *interface{} // TODO
-	Video          *interface{} // TODO
+	Video          *tVideo
 	Voice          *interface{} // TODO
 	Video_note     *interface{} // TODO
 	Caption        *interface{} // TODO
@@ -273,6 +279,17 @@ func (bot *tBot) handleMessageAnimation(message tMessage, request *tRequest) {
 	}
 }
 
+func (bot *tBot) handleMessageVideo(message tMessage, request *tRequest) {
+	request.method = "sendVideo"
+	request.params["video"] = message.Video.File_id
+	request.params["width"] = *message.Video.Width
+	request.params["height"] = *message.Video.Height
+	request.params["duration"] = *message.Video.Duration
+	if message.Caption != nil {
+		request.params["caption"] = *message.Caption
+	}
+}
+
 func (bot *tBot) handleMessageUnsupported(message tMessage, request *tRequest) {
 	log.Println("Unsupported message type")
 	_, err := bot.request("forwardMessage", map[string]interface{}{
@@ -326,6 +343,8 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 		bot.handleMessagePhoto(message, &request)
 	} else if message.Animation != nil {
 		bot.handleMessageAnimation(message, &request)
+	} else if message.Video != nil {
+		bot.handleMessageVideo(message, &request)
 	} else {
 		bot.handleMessageUnsupported(message, &request)
 	}
