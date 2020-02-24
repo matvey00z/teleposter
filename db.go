@@ -84,6 +84,28 @@ func (bot *tBot) rememberAuthor(messageId int64, chatId int64) {
 	}
 }
 
+func (bot *tBot) forgetPost(messageId int64) {
+	_, err := bot.db.Exec(`
+		DELETE FROM authors WHERE post_id=?;
+		DELETE FROM likes WHERE post_id=?;`,
+		messageId, messageId)
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
+func (bot *tBot) hasPostId(messageId int64) bool {
+	row := bot.db.QueryRow(`
+		SELECT COUNT(*) as count FROM authors WHERE post_id=?`,
+		messageId)
+	var count int64
+	err := row.Scan(&count)
+	if err != nil {
+		log.Panic(err)
+	}
+	return (count > 0)
+}
+
 func (bot *tBot) like(postId int64, reactionType int, userId int64, name string) {
 	res, err := bot.db.Exec(`
         DELETE FROM likes

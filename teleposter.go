@@ -18,16 +18,30 @@ import (
 )
 
 const (
-	pollTimeout = 600
+	pollTimeout  = 600
+	maxGroupsCnt = 5
 )
 
 var reactions = [...]string{"🍰", "🤔 ", "[|||]"}
 
+type MediaGroup struct {
+	mediaGroupId  string
+	lastMessageId int64
+}
+
+type MessageGroup struct {
+	authorId      int64
+	date          int64
+	lastMessageId int64
+}
+
 type tBot struct {
-	token     string
-	chatId    int64
-	db        *sql.DB
-	proxyAddr string
+	token         string
+	chatId        int64
+	db            *sql.DB
+	proxyAddr     string
+	mediaGroups   []MediaGroup
+	messageGroups []MessageGroup
 }
 
 type tTelegramResponse struct {
@@ -155,21 +169,23 @@ type tPhoto struct {
 	File_id string
 }
 type tMessage struct {
-	Message_id *int64
-	Chat       *tChat
-	Text       *string
-	Entities   []tMessageEntity
-	Audio      *interface{} // TODO
-	Document   *interface{} // TODO
-	Animation  *tAnimation
-	Photo      []tPhoto
-	Sticker    *interface{} // TODO
-	Video      *interface{} // TODO
-	Voice      *interface{} // TODO
-	Video_note *interface{} // TODO
-	Caption    *interface{} // TODO
-	Contact    *interface{} // TODO
-	Location   *interface{} // TODO
+	Message_id     *int64
+	Chat           *tChat
+	Date           int64
+	Text           *string
+	Entities       []tMessageEntity
+	Audio          *interface{} // TODO
+	Document       *interface{} // TODO
+	Animation      *tAnimation
+	Media_group_id *string
+	Photo          []tPhoto
+	Sticker        *interface{} // TODO
+	Video          *interface{} // TODO
+	Voice          *interface{} // TODO
+	Video_note     *interface{} // TODO
+	Caption        *interface{} // TODO
+	Contact        *interface{} // TODO
+	Location       *interface{} // TODO
 }
 
 type tRequest struct {
@@ -191,6 +207,56 @@ func (bot *tBot) handleMessageText(message tMessage, request *tRequest) {
 func (bot *tBot) handleMessagePhoto(message tMessage, request *tRequest) {
 	request.method = "sendPhoto"
 	request.params["photo"] = message.Photo[0].File_id
+}
+
+func (bot *tBot) unwatchPost(messageId int64) {
+	params := map[string]interface{}{
+		"chat_id":    bot.chatId,
+		"message_id": messageId,
+	}
+	_, err := bot.request("editMessageReplyMarkup", params)
+	if err != nil {
+		log.Println(err)
+	}
+	bot.forgetPost(messageId)
+}
+
+func (bot *tBot) handleMediaGroup(message tMessage, outputId int64) {
+	for i, group := range bot.mediaGroups {
+		if group.mediaGroupId == *message.Media_group_id {
+			bot.unwatchPost(group.lastMessageId)
+			bot.mediaGroups[i].lastMessageId = outputId
+			return
+		}
+	}
+	if len(bot.mediaGroups) >= maxGroupsCnt {
+		bot.mediaGroups = bot.mediaGroups[1:maxGroupsCnt]
+		var newMediaGroups = make([]MediaGroup, len(bot.mediaGroups))
+		copy(newMediaGroups, bot.mediaGroups)
+		bot.mediaGroups = newMediaGroups
+	}
+	bot.mediaGroups = append(bot.mediaGroups,
+		MediaGroup{*message.Media_group_id, outputId})
+}
+
+func (bot *tBot) handleMessageGroup(message tMessage, outputId int64) {
+	var authorId int64 = *message.Chat.Id
+	var date int64 = message.Date
+	for i, group := range bot.messageGroups {
+		if group.authorId == authorId && group.date == date {
+			bot.unwatchPost(group.lastMessageId)
+			bot.messageGroups[i].lastMessageId = outputId
+			return
+		}
+	}
+	if len(bot.messageGroups) >= maxGroupsCnt {
+		bot.messageGroups = bot.messageGroups[1:maxGroupsCnt]
+		var newMessageGroups = make([]MessageGroup, len(bot.messageGroups))
+		copy(newMessageGroups, bot.messageGroups)
+		bot.messageGroups = newMessageGroups
+	}
+	bot.messageGroups = append(bot.messageGroups,
+		MessageGroup{authorId, date, outputId})
 }
 
 func (bot *tBot) handleMessageAnimation(message tMessage, request *tRequest) {
@@ -255,21 +321,6 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 		bot.handleMessageText(message, &request)
 	} else if message.Photo != nil {
 		bot.handleMessagePhoto(message, &request)
-		/* TODO send media group if have field media_group_id
-			sendMediaGroup does not support inline keyboard
-			replyMethod = "sendMediaGroup"
-			media := "["
-			for i, photo := range uniquePhotos {
-				if i != 0 {
-					media += ","
-				}
-				media += fmt.Sprintf(`{"type":"photo", "media":"%s"}`,
-					photo.File_id)
-			}
-			media += "]"
-			params["media"] = media
-			supported = false
-		}*/
 	} else if message.Animation != nil {
 		bot.handleMessageAnimation(message, &request)
 	} else {
@@ -286,6 +337,12 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 		log.Panic(err)
 	}
 	bot.rememberAuthor(*sentMessage.Message_id, *message.Chat.Id)
+
+	if message.Media_group_id != nil {
+		bot.handleMediaGroup(message, *sentMessage.Message_id)
+	} else {
+		bot.handleMessageGroup(message, *sentMessage.Message_id)
+	}
 }
 
 func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
@@ -311,6 +368,10 @@ func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
 	num, err := strconv.Atoi(*callbackQuery.Data)
 	if num < 0 || num >= len(reactions) {
 		log.Panic(errors.New("Bad reaction type"))
+	}
+	if !bot.hasPostId(*callbackQuery.Message.Message_id) {
+		log.Println("Trying to like non-existing post id ", *callbackQuery.Message.Message_id)
+		return
 	}
 	bot.like(*callbackQuery.Message.Message_id, num,
 		*callbackQuery.From.Id,
