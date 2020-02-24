@@ -207,6 +207,9 @@ func (bot *tBot) handleMessageText(message tMessage, request *tRequest) {
 func (bot *tBot) handleMessagePhoto(message tMessage, request *tRequest) {
 	request.method = "sendPhoto"
 	request.params["photo"] = message.Photo[0].File_id
+	if message.Caption != nil {
+		request.params["caption"] = *message.Caption
+	}
 }
 
 func (bot *tBot) unwatchPost(messageId int64) {
