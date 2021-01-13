@@ -22,7 +22,7 @@ const (
 	maxGroupsCnt = 5
 )
 
-var reactions = [...]string{"🍰", "🤔 ", "[|||]"}
+var reactions = [...]string{"🍰", "🤔 ", "[|||]", "🎻"}
 
 type MediaGroup struct {
 	mediaGroupId  string
