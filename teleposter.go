@@ -299,13 +299,13 @@ func (bot *tBot) handleMessageUnsupported(message tMessage, request *tRequest) {
 		"message_id":   *message.Message_id,
 	})
 	if err != nil {
-		log.Panic(err)
-	}
-	if err != nil {
-		log.Panic(err)
+		log.Println(err)
+		request.params["text"] = "А " + bot.getAuthorName(*message.Chat.Id) +
+			" ломает бота!"
+	} else {
+		request.params["text"] = "^^Нраица?"
 	}
 	request.method = "sendMessage"
-	request.params["text"] = "^^Нраица?"
 }
 
 func (bot *tBot) handleMessage(messageJson json.RawMessage) {
