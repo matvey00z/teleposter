@@ -139,10 +139,9 @@ func (bot *tBot) like(postId int64, reactionType int, userId int64, name string)
 	}
 }
 
-func (bot *tBot) getUserStats(authorId int64) (int64, [len(reactions)]int64, [len(reactions)]float64) {
+func (bot *tBot) getUserStats(authorId int64) (int64, [len(reactions)]int64) {
 	var totalPosts int64
 	var totalReactions [len(reactions)]int64
-	var totalPercent [len(reactions)]float64
 	rows, err := bot.db.Query(`
 		SELECT post_id
 		FROM authors
@@ -175,7 +174,7 @@ func (bot *tBot) getUserStats(authorId int64) (int64, [len(reactions)]int64, [le
 			totalReactions[reaction_type] += 1
 		}
 	}
-	return totalPosts, totalReactions, totalPercent
+	return totalPosts, totalReactions
 }
 
 func (bot *tBot) getAuthorsList() []int64 {

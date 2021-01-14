@@ -34,7 +34,7 @@ Read more about this bot and report bugs here: https://github.com/matvey00z/tele
 	)
 }
 
-func getStatsString(total int64, reactionsCnt [len(reactions)]int64, ReactionsPercent [len(reactions)]float64) string {
+func getStatsString(total int64, reactionsCnt [len(reactions)]int64) string {
 	ret := fmt.Sprintf("%v total", total)
 	for i, cnt := range reactionsCnt {
 		ret += fmt.Sprintf("; %v %v (%.0f%%)", cnt, reactions[i], 100*float64(cnt)/float64(total))
@@ -43,8 +43,8 @@ func getStatsString(total int64, reactionsCnt [len(reactions)]int64, ReactionsPe
 }
 
 func (bot *tBot) myStats(chatId int64) {
-	totalPosts, totalReactions, totalPercent := bot.getUserStats(chatId)
-	bot.replyWText(chatId, getStatsString(totalPosts, totalReactions, totalPercent))
+	totalPosts, totalReactions := bot.getUserStats(chatId)
+	bot.replyWText(chatId, getStatsString(totalPosts, totalReactions))
 }
 
 func (bot *tBot) allStats(chatId int64) {
@@ -52,9 +52,9 @@ func (bot *tBot) allStats(chatId int64) {
 	var reply string
 	for _, authorId := range authors {
 		authorName := bot.getAuthorName(authorId)
-		totalPosts, totalReactions, totalPercent := bot.getUserStats(authorId)
+		totalPosts, totalReactions := bot.getUserStats(authorId)
 		reply += fmt.Sprintf("%s: %s\n", authorName,
-			getStatsString(totalPosts, totalReactions, totalPercent))
+			getStatsString(totalPosts, totalReactions))
 	}
 	bot.replyWText(chatId, reply)
 }
