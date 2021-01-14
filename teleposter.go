@@ -40,6 +40,7 @@ type tBot struct {
 	chatId        int64
 	db            *sql.DB
 	proxyAddr     string
+	idWhitelist   tIdWhitelist
 	mediaGroups   []MediaGroup
 	messageGroups []MessageGroup
 }
@@ -314,6 +315,10 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	if err != nil {
 		log.Panic(err)
 	}
+	if !bot.idWhitelist.Has(*message.Chat.Id) {
+		log.Printf("Input message from %v (%v)", *message.Chat.Id, bot.getAuthorName(*message.Chat.Id))
+		return
+	}
 
 	var request = newRequest()
 	request.params["chat_id"] = bot.chatId
@@ -479,6 +484,29 @@ func (intf *IntFlag) String() string {
 	return "nil"
 }
 
+type tIdWhitelist []int64
+
+func (i *tIdWhitelist) String() string {
+	return fmt.Sprint(*i)
+}
+
+func (i *tIdWhitelist) Set(value string) error {
+	v, err := strconv.ParseInt(value, 10, 64)
+	if err == nil {
+		*i = append(*i, v)
+	}
+	return err
+}
+
+func (i *tIdWhitelist) Has(id int64) bool {
+	for _, listed := range *i {
+		if id == listed {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	var chatId IntFlag
 	var dbname string
@@ -487,6 +515,7 @@ func main() {
 	flag.StringVar(&bot.token, "token", "", "Bot token")
 	flag.Var(&chatId, "chat", "ChatId")
 	flag.StringVar(&bot.proxyAddr, "proxy", "", "SOCKS5 proxy address")
+	flag.Var(&bot.idWhitelist, "whitelist", "List of allowed posters")
 	flag.Parse()
 	if dbname == "" || bot.token == "" || !chatId.set {
 		flag.Usage()
