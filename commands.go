@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func (bot *tBot) replyWText(chatId int64, text string) {
 	bot.request("sendMessage", map[string]interface{}{
@@ -32,17 +34,17 @@ Read more about this bot and report bugs here: https://github.com/matvey00z/tele
 	)
 }
 
-func getStatsString(total int64, reactionsCnt [len(reactions)]int64) string {
+func getStatsString(total int64, reactionsCnt [len(reactions)]int64, ReactionsPercent [len(reactions)]float64) string {
 	ret := fmt.Sprintf("%v total", total)
 	for i, cnt := range reactionsCnt {
-		ret += fmt.Sprintf(", %v%v", cnt, reactions[i])
+		ret += fmt.Sprintf("; %v %v (%.0f%%)", cnt, reactions[i], 100*float64(cnt)/float64(total))
 	}
 	return ret
 }
 
 func (bot *tBot) myStats(chatId int64) {
-	totalPosts, totalReactions := bot.getUserStats(chatId)
-	bot.replyWText(chatId, getStatsString(totalPosts, totalReactions))
+	totalPosts, totalReactions, totalPercent := bot.getUserStats(chatId)
+	bot.replyWText(chatId, getStatsString(totalPosts, totalReactions, totalPercent))
 }
 
 func (bot *tBot) allStats(chatId int64) {
@@ -50,9 +52,9 @@ func (bot *tBot) allStats(chatId int64) {
 	var reply string
 	for _, authorId := range authors {
 		authorName := bot.getAuthorName(authorId)
-		totalPosts, totalReactions := bot.getUserStats(authorId)
+		totalPosts, totalReactions, totalPercent := bot.getUserStats(authorId)
 		reply += fmt.Sprintf("%s: %s\n", authorName,
-			getStatsString(totalPosts, totalReactions))
+			getStatsString(totalPosts, totalReactions, totalPercent))
 	}
 	bot.replyWText(chatId, reply)
 }
