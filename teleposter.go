@@ -486,20 +486,20 @@ func (intf *IntFlag) String() string {
 
 type tIdWhitelist []int64
 
-func (i *tIdWhitelist) String() string {
-	return fmt.Sprint(*i)
+func (idWhitelist *tIdWhitelist) String() string {
+	return fmt.Sprint(*idWhitelist)
 }
 
-func (i *tIdWhitelist) Set(value string) error {
+func (idWhitelist *tIdWhitelist) Set(value string) error {
 	v, err := strconv.ParseInt(value, 10, 64)
 	if err == nil {
-		*i = append(*i, v)
+		*idWhitelist = append(*idWhitelist, v)
 	}
 	return err
 }
 
-func (i *tIdWhitelist) Has(id int64) bool {
-	for _, listed := range *i {
+func (idWhitelist *tIdWhitelist) Has(id int64) bool {
+	for _, listed := range *idWhitelist {
 		if id == listed {
 			return true
 		}
