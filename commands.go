@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func (bot *tBot) replyWText(chatId int64, text string) {
 	bot.request("sendMessage", map[string]interface{}{
@@ -35,7 +37,7 @@ Read more about this bot and report bugs here: https://github.com/matvey00z/tele
 func getStatsString(total int64, reactionsCnt [len(reactions)]int64) string {
 	ret := fmt.Sprintf("%v total", total)
 	for i, cnt := range reactionsCnt {
-		ret += fmt.Sprintf(", %v%v", cnt, reactions[i])
+		ret += fmt.Sprintf("; %v %v (%.0f%%)", cnt, reactions[i], 100*float64(cnt)/float64(total))
 	}
 	return ret
 }
