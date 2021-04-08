@@ -206,19 +206,6 @@ func newRequest() tRequest {
 	return request
 }
 
-func (bot *tBot) handleMessageText(message tMessage, request *tRequest) {
-	request.method = "sendMessage"
-	request.params["text"] = *message.Text
-}
-
-func (bot *tBot) handleMessagePhoto(message tMessage, request *tRequest) {
-	request.method = "sendPhoto"
-	request.params["photo"] = message.Photo[0].File_id
-	if message.Caption != nil {
-		request.params["caption"] = *message.Caption
-	}
-}
-
 func (bot *tBot) unwatchPost(messageId int64) {
 	params := map[string]interface{}{
 		"chat_id":    bot.chatId,
@@ -269,45 +256,6 @@ func (bot *tBot) handleMessageGroup(message tMessage, outputId int64) {
 		MessageGroup{authorId, date, outputId})
 }
 
-func (bot *tBot) handleMessageAnimation(message tMessage, request *tRequest) {
-	request.method = "sendAnimation"
-	request.params["animation"] = message.Animation.File_id
-	request.params["width"] = *message.Animation.Width
-	request.params["height"] = *message.Animation.Height
-	request.params["duration"] = *message.Animation.Duration
-	if message.Caption != nil {
-		request.params["caption"] = *message.Caption
-	}
-}
-
-func (bot *tBot) handleMessageVideo(message tMessage, request *tRequest) {
-	request.method = "sendVideo"
-	request.params["video"] = message.Video.File_id
-	request.params["width"] = *message.Video.Width
-	request.params["height"] = *message.Video.Height
-	request.params["duration"] = *message.Video.Duration
-	if message.Caption != nil {
-		request.params["caption"] = *message.Caption
-	}
-}
-
-func (bot *tBot) handleMessageUnsupported(message tMessage, request *tRequest) {
-	log.Println("Unsupported message type")
-	_, err := bot.request("forwardMessage", map[string]interface{}{
-		"chat_id":      bot.chatId,
-		"from_chat_id": *message.Chat.Id,
-		"message_id":   *message.Message_id,
-	})
-	if err != nil {
-		log.Println(err)
-		request.params["text"] = "А " + bot.getAuthorName(*message.Chat.Id) +
-			" ломает бота!"
-	} else {
-		request.params["text"] = "^^Нраица?"
-	}
-	request.method = "sendMessage"
-}
-
 func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	log.Println("Input message")
 	var message tMessage
@@ -342,17 +290,9 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 			return
 		}
 	}
-	if message.Text != nil {
-		bot.handleMessageText(message, &request)
-	} else if message.Photo != nil {
-		bot.handleMessagePhoto(message, &request)
-	} else if message.Animation != nil {
-		bot.handleMessageAnimation(message, &request)
-	} else if message.Video != nil {
-		bot.handleMessageVideo(message, &request)
-	} else {
-		bot.handleMessageUnsupported(message, &request)
-	}
+	request.method = "copyMessage"
+	request.params["from_chat_id"] = *message.Chat.Id
+	request.params["message_id"] = *message.Message_id
 	request.params["reply_markup"] = bot.getLikeKeyboard(nil)
 	answer, err := bot.request(request.method, request.params)
 	if err != nil {
