@@ -94,31 +94,29 @@ func (bot *tBot) forgetPost(messageId int64) {
 	}
 }
 
-func (bot *tBot) hasPostId(messageId int64) bool {
-	row := bot.db.QueryRow(`
-		SELECT COUNT(*) as count FROM authors WHERE post_id=?`,
-		messageId)
-	var count int64
-	err := row.Scan(&count)
+func (bot *tBot) getPostAuthor(postId int64) *int64 {
+	rows, err := bot.db.Query(`
+		SELECT author_id
+		FROM authors
+		WHERE post_id = ?`, postId)
 	if err != nil {
 		log.Panic(err)
 	}
-	return (count > 0)
+	if !rows.Next() {
+		return nil
+	}
+	var authorId int64
+	err = rows.Scan(&authorId)
+	if err != nil {
+		log.Panic(err)
+	}
+	if rows.Next() {
+		log.Panic("Multiple authors for a post %v", postId)
+	}
+	return &authorId
 }
 
 func (bot *tBot) like(postId int64, reactionType int, userId int64, name string) {
-	var authorId int64
-	err := bot.db.QueryRow(`
-		SELECT author_id
-		FROM authors
-		WHERE post_id = ?`, postId).Scan(&authorId)
-	if err != nil {
-		log.Panic(err)
-	}
-	if authorId == userId {
-		log.Printf("Self reaction of <%v> to %v: %v\n", name, postId, reactionType)
-		return
-	}
 	res, err := bot.db.Exec(`
         DELETE FROM likes
         WHERE post_id = ? AND reaction_type = ? AND user_id = ?`,

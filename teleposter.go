@@ -312,6 +312,14 @@ func (bot *tBot) handleMessage(messageJson json.RawMessage) {
 	}
 }
 
+func (bot *tBot) answerCallback(id string, text string) {
+	params := map[string]interface{}{
+		"callback_query_id": id,
+		"text":              text,
+	}
+	bot.request("answerCallbackQuery", params)
+}
+
 func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
 	type tUser struct {
 		Id         *int64
@@ -322,6 +330,7 @@ func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
 		Chat       *tChat
 	}
 	type tCallbackQuery struct {
+		Id      string
 		Message *tMessage
 		From    *tUser
 		Data    *string
@@ -336,8 +345,17 @@ func (bot *tBot) handleCallback(callbackQueryJson json.RawMessage) {
 	if num < 0 || num >= len(reactions) {
 		log.Panic(errors.New("Bad reaction type"))
 	}
-	if !bot.hasPostId(*callbackQuery.Message.Message_id) {
+	postAuthorId := bot.getPostAuthor(*callbackQuery.Message.Message_id)
+	if postAuthorId == nil {
 		log.Println("Trying to like non-existing post id ", *callbackQuery.Message.Message_id)
+		return
+	}
+	if *postAuthorId == *callbackQuery.From.Id {
+		log.Printf("Self reaction of <%v> to %v: %v\n",
+			callbackQuery.From.First_name,
+			*callbackQuery.Message.Message_id,
+			num)
+		bot.answerCallback(callbackQuery.Id, "That's your post")
 		return
 	}
 	bot.like(*callbackQuery.Message.Message_id, num,
