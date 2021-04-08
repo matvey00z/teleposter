@@ -143,37 +143,44 @@ func (bot *tBot) getUserStats(authorId int64) (int64, [len(reactions)]int64) {
 	var totalPosts int64
 	var totalReactions [len(reactions)]int64
 	rows, err := bot.db.Query(`
-		SELECT post_id
-		FROM authors
-		WHERE author_id = ?`, authorId)
+		SELECT reaction_type,COUNT(reaction_type)
+		FROM
+			authors
+			INNER JOIN
+			likes
+			ON
+			authors.post_id=likes.post_id
+		WHERE author_id = ?
+		GROUP BY reaction_type`, authorId)
 	if err != nil {
 		log.Panic(err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		totalPosts += 1
-		var postId int
-		err := rows.Scan(&postId)
+		var reactionType int
+		var reactionCount int64
+		err := rows.Scan(&reactionType, &reactionCount)
 		if err != nil {
 			log.Panic(err)
 		}
-		reaction_rows, err := bot.db.Query(`
-			SELECT reaction_type
-			FROM likes
-			WHERE post_id = ?`, postId)
-		if err != nil {
-			log.Panic(err)
-		}
-		defer reaction_rows.Close()
-		for reaction_rows.Next() {
-			var reaction_type int
-			reaction_rows.Scan(&reaction_type)
-			if reaction_type < 0 || reaction_type >= len(totalReactions) {
-				log.Println("Bad reaction type")
-			}
-			totalReactions[reaction_type] += 1
+		if reactionType < 0 || reactionType >= len(totalReactions) {
+			log.Println("Bad reaction type")
+		} else {
+			totalReactions[reactionType] = reactionCount
 		}
 	}
+	row := bot.db.QueryRow(`
+		SELECT COUNT(post_id)
+		FROM authors
+		WHERE author_id = ?`, authorId)
+	if err != nil {
+		log.Panic(err)
+	}
+	err = row.Scan(&totalPosts)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	return totalPosts, totalReactions
 }
 
